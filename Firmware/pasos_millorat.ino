@@ -17,9 +17,10 @@
 #define CMD_CHAR_UUID   "12345678-1234-1234-1234-123456789013"
 #define STEPS_CHAR_UUID "12345678-1234-1234-1234-123456789014"
 
-// Parámetros de detección — ajusta UMBRAL_SUBIDA si sigue contando mal
-const float        UMBRAL_SUBIDA  = 0.8;  // m/s² — umbral mínimo para considerar un pico
-const unsigned long DEBOUNCE_MS   = 250;  // ms mínimos entre pasos
+// Parámetros de detección
+const float        UMBRAL_SUBIDA  = 1.2;  // m/s² — sube a 1.4 si sigue contando de más
+const unsigned long DEBOUNCE_MS   = 400;  // ms mínimos entre pasos
+const unsigned long SILENCIO_MS   = 400;  // ms de bloqueo tras cada paso válido
 const unsigned long INTERVALO_IMU = 20;   // ms entre lecturas (50 Hz)
 const unsigned long INTERVALO_NOTIF = 1000; // ms entre notificaciones BLE
 
@@ -45,8 +46,12 @@ unsigned long ultimaLectura   = 0;
 unsigned long ultimaNotif     = 0;
 
 // Detección por máximo local
-float magAnterior      = 0;
-float magAnteAnterior  = 0;
+float magAnterior     = 0;
+float magAnteAnterior = 0;
+
+// Ventana de silencio
+bool          enSilencio = false;
+unsigned long finSilencio = 0;
 
 // Filtro de media móvil
 float bufferMag[VENTANA_FILTRO] = {0};
@@ -118,14 +123,16 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
 
     if (cmd == "Go" || cmd == "Iniciar prueba") {
       // Reset completo de todos los contadores y estado
-      pasosTotales   = 0;
-      ultimoPaso     = 0;
-      magAnterior    = 0;
+      pasosTotales    = 0;
+      ultimoPaso      = 0;
+      magAnterior     = 0;
       magAnteAnterior = 0;
-      idxFiltro      = 0;
+      idxFiltro       = 0;
+      enSilencio      = false;
+      finSilencio     = 0;
       for (int i = 0; i < VENTANA_FILTRO; i++) bufferMag[i] = 0;
-      tiempoInicio   = millis();
-      midiendo       = true;
+      tiempoInicio    = millis();
+      midiendo        = true;
       Serial.println("[CMD] >> Medicion iniciada.");
 
     } else if (cmd == "Stop" || cmd == "Parar") {
@@ -196,24 +203,30 @@ void loop() {
     // Aceleración lineal sin gravedad
     imu::Vector<3> accel = bno.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
 
-    // Magnitud del vector 3D → funciona en cualquier orientación del dispositivo
+    // Magnitud del vector 3D
     float magRaw = sqrt(accel.x() * accel.x() +
                         accel.y() * accel.y() +
                         accel.z() * accel.z());
 
-    // Aplicamos el filtro de media móvil para eliminar ruido
+    // Aplicamos el filtro de media móvil
     float mag = aplicarFiltro(magRaw);
 
     // --- Detección por máximo local ---
-    // Un paso se cuenta cuando la muestra anterior es mayor que sus
-    // dos vecinas (pico) Y supera el umbral mínimo
     bool esPicoLocal = (magAnterior > mag) &&
                        (magAnterior > magAnteAnterior) &&
                        (magAnterior > UMBRAL_SUBIDA);
 
-    if (esPicoLocal && (ahora - ultimoPaso > DEBOUNCE_MS)) {
+    // Actualizamos el estado de la ventana de silencio
+    if (enSilencio && ahora >= finSilencio) {
+      enSilencio = false;
+    }
+
+    // Contamos el paso solo si hay pico local y no estamos en silencio
+    if (esPicoLocal && !enSilencio) {
       pasosTotales++;
-      ultimoPaso = ahora;
+      ultimoPaso  = ahora;
+      enSilencio  = true;
+      finSilencio = ahora + SILENCIO_MS;
       Serial.print("[PASO] Total: ");
       Serial.println(pasosTotales);
     }
