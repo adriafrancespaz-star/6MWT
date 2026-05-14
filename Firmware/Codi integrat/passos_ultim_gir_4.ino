@@ -31,9 +31,9 @@ bool firstReading = true;
 int tracking_axis = 0; 
 float lastHeading = 0;
 float accumulatedRotation = 0;
-const float TURN_THRESHOLD = 120.0;  
-const float NOISE_THRESHOLD = 2.5;   
-unsigned long lastTurnTime = 0;      
+const float TURN_THRESHOLD = 120.0;  // Umbral para medias vuelta
+const float NOISE_THRESHOLD = 2.5;   // Filtro para ignorar el tambaleo de la cadera
+unsigned long lastTurnTime = 0;      // Temporizador para no contar giros dobles
 
 // Variables para podómetro (Calibración Universal para múltiples usuarios)
 unsigned long lastStepTime = 0;
@@ -63,19 +63,18 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
       firstReading = true; // Forzamos recalibrar el eje horizontal al arrancar
       
       Serial.println("Medición iniciada");
-      pCharacteristicTX->setValue("Go!");
+      // Importante para que App Inventor detecte actividad
       pCharacteristicTX->notify();
     }
     else if (valor == "stop") {
       if (isRunning) {
         isRunning = false;
-        float timeSeconds = (millis() - startTime) / 1000.0;
         
-        // Formato comprimido: "T:12.5s V:3 P:42" (Pasos del ÚLTIMO tramo)
-        char resultStr[30];
-        snprintf(resultStr, sizeof(resultStr), "T:%.1fs V:%d P:%d", timeSeconds, turnCount, stepCount);
+        // Formato estándar "V;P" sin los dos puntos iniciales para no romper el split de la App        char resultStr[30];
+        snprintf(resultStr, sizeof(resultStr), "%d;%d", turnCount, stepCount);
         
         Serial.println("Medición finalizada");
+        Serial.print("Enviando a App: ");
         Serial.println(resultStr);
         
         pCharacteristicTX->setValue(resultStr);
@@ -101,7 +100,14 @@ class MyServerCallbacks : public BLEServerCallbacks {
 
 void setup() {
   Serial.begin(115200);
+    // --- CONFIGURACIÓN I2C ROBUSTA PARA ESP32 + BNO055 ---
   Wire.begin();
+  Wire.setClock(50000);   // Reducir de 100kHz a 50kHz mitiga drásticamente el bug
+  Wire.setTimeOut(100);   // Si el sensor tarda más de 100ms, aborta para no congelar el ESP32
+  // -----------------------------------------------------
+  
+  // Pequeña pausa para estabilizar el bus antes de hablar con el sensor
+  delay(100);
   
   if (!bno.begin()) {
     Serial.println("Error: No se detecta el BNO055.");
@@ -136,7 +142,7 @@ void setup() {
   pAdvertising->setScanResponse(true);
   BLEDevice::startAdvertising();
 
-  Serial.println("Esperando conexión BLE. Envía 'go' o 'stop'.");
+  Serial.println("Esperando conexión BLE...");
 }
 
 void loop() {
