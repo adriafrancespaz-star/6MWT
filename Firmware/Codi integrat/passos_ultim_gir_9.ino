@@ -34,7 +34,7 @@ bool firstReading = true;
 int tracking_axis = 0; 
 float lastHeading = 0;
 float accumulatedRotation = 0;
-const float TURN_THRESHOLD = 120.0;
+const float TURN_THRESHOLD = 150.0;
 const float NOISE_THRESHOLD = 2.5;   
 unsigned long lastTurnTime = 0;
 
@@ -201,7 +201,7 @@ void loop() {
           accumulatedRotation += deltaAngle;
           lastHeading = currentHeading;
           if (abs(accumulatedRotation) >= TURN_THRESHOLD) {
-            if (millis() - lastTurnTime > 1500) {  
+            if (millis() - lastTurnTime > 2000) {  
               turnCount++;
               lastTurnTime = millis();
               stepCount = 0; // Se resetean los pasos para este nuevo tramo
