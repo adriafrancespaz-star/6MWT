@@ -51,7 +51,7 @@ void setup() {
 
 void loop() {
   if (deviceConnected) {
-    String mensaje = "Hola ESP32";
+    String mensaje = "Hola desde ESP32";
     pCharacteristic->setValue(mensaje.c_str());
     pCharacteristic->notify();
     Serial.println("Enviado: " + mensaje);
