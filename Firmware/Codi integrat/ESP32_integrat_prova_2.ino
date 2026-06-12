@@ -37,8 +37,8 @@ unsigned long lastTurnTime = 0;      // Temporizador para no contar giros dobles
 
 // Variables para podómetro (Ajustadas según tu tabla de calibración)
 unsigned long lastStepTime = 0;
-const float STEP_THRESHOLD = 3.3;    // Bajado para detectar pasos más suaves
-const int STEP_TIMEOUT = 380;        // Bajado para no perder pasos al caminar rápido
+const float STEP_THRESHOLD = 3.6;    // Bajado para detectar pasos más suaves
+const int STEP_TIMEOUT = 400;        // Bajado para no perder pasos al caminar rápido
 
 // Normaliza la diferencia angular al rango [-180, 180]
 float normalizeAngle(float angle) {
